@@ -1,7 +1,6 @@
-{
+{lib}: {
   config,
   pkgs,
-  lib,
   ...
 }: let
   inherit (lib.modules) mkIf mkMerge;
@@ -24,15 +23,17 @@
       // cfg.specialArgs;
     modules = concatLists [
       [
-        ({name, ...}: {
-          imports = [../common.nix];
+        (
+          {name, ...}: {
+            imports = [../common.nix];
 
-          config = {
-            user = config.users.users.${name}.name;
-            directory = config.users.users.${name}.home;
-            clobberFiles = cfg.clobberByDefault;
-          };
-        })
+            config = {
+              user = config.users.users.${name}.name;
+              directory = config.users.users.${name}.home;
+              clobberFiles = cfg.clobberByDefault;
+            };
+          }
+        )
       ]
 
       # Evaluate additional modules under 'hjem.users.<name>' so that
@@ -83,40 +84,49 @@ in {
 
   config = mkMerge [
     {
-      users.users = mapAttrs' (name: {packages, ...}: {
-        inherit name;
-        value.packages = packages;
-      }) (filterAttrs (_: u: (u.enable && u.packages != [])) cfg.users);
+      users.users = mapAttrs' (
+        name: {packages, ...}: {
+          inherit name;
+          value.packages = packages;
+        }
+      ) (filterAttrs (_: u: (u.enable && u.packages != [])) cfg.users);
 
-      systemd.user.tmpfiles.users = mapAttrs' (name: {files, ...}: {
-        inherit name;
-        value.rules = map (
-          file: let
-            # L+ will recreate, i.e., clobber existing files.
-            mode =
-              if file.clobber
-              then "L+"
-              else "L";
-          in
-            # Constructed rule string that consists of the type, target, and source
-            # of a tmpfile. Files with 'null' sources are filtered before the rule
-            # is constructed.
-            "${mode} '${file.target}' - - - - ${file.source}"
-        ) (filter (f: f.enable && f.source != null) (attrValues files));
-      }) (filterAttrs (_: u: (u.enable && u.files != {})) cfg.users);
+      systemd.user.tmpfiles.users = mapAttrs' (
+        name: {files, ...}: {
+          inherit name;
+          value.rules = map (
+            file: let
+              # L+ will recreate, i.e., clobber existing files.
+              mode =
+                if file.clobber
+                then "L+"
+                else "L";
+            in
+              # Constructed rule string that consists of the type, target, and source
+              # of a tmpfile. Files with 'null' sources are filtered before the rule
+              # is constructed.
+              "${mode} '${file.target}' - - - - ${file.source}"
+          ) (filter (f: f.enable && f.source != null) (attrValues files));
+        }
+      ) (filterAttrs (_: u: (u.enable && u.files != {})) cfg.users);
     }
 
     (mkIf (cfg.users != {}) {
-      warnings = flatten (flip mapAttrsToList cfg.users (user: config:
-        flip map config.warnings (
-          warning: "${user} profile: ${warning}"
-        )));
+      warnings = flatten (
+        flip mapAttrsToList cfg.users (
+          user: config: flip map config.warnings (warning: "${user} profile: ${warning}")
+        )
+      );
 
-      assertions = flatten (flip mapAttrsToList cfg.users (user: config:
-        flip map config.assertions (assertion: {
-          inherit (assertion) assertion;
-          message = "${user} profile: ${assertion.message}";
-        })));
+      assertions = flatten (
+        flip mapAttrsToList cfg.users (
+          user: config:
+            flip map config.assertions (assertion: {
+              inherit (assertion) assertion;
+              message = "${user} profile: ${assertion.message}";
+            })
+        )
+      );
     })
   ];
 }
