@@ -40,7 +40,9 @@
         target = mkOption {
           type = str;
           apply = p:
-            if hasPrefix "/" p
+            if hasPrefix config.relativeTo p
+            then p
+            else if hasPrefix "/" p
             then throw "This option cannot handle absolute paths yet!"
             else "${config.relativeTo}/${p}";
           defaultText = "name";
